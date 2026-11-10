@@ -30,6 +30,14 @@ Everything runs on your device. Your zip is read locally and is never uploaded a
 2. Open the app and choose your `bootanimation.zip`.
 3. Watch it play, or tap Record to save a video.
 
+4. ## Don't want to install an app?
+
+You can use it right in your browser instead, no installation needed:
+
+**[Open the web version](https://nadheem988876-sudo.github.io/Boot-Animation-Tester/)**
+
+Prefer to check the code first? The whole web version is a single file, [`index.html`](index.html), and you can read exactly what it does. Your zip is processed locally in your browser and is never uploaded.
+
 ## Feedback
 
 Found a bug or have an idea? Open an [issue](../../issues).
