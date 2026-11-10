@@ -18,7 +18,7 @@ Most boot animation previewers get stuck on a looping part, because they wait fo
 - Landscape animations (1920x1080, 1920x1280) are shown in a plain black box
 - Both axes are scaled equally, so nothing looks stretched
 - Fullscreen mode with a restart button (top left) and an exit button (top right)
-- **Record**: plays the whole boot and saves it as an MP4 at the animation's own resolution (portrait stays portrait, landscape stays landscape). The file is named `_recording.mp4` and goes to your Downloads folder
+- **Record**: plays the whole boot and saves it as an MP4 at the animation's own resolution (portrait stays portrait, landscape stays landscape). The file is named `*ZipName*_recording.mp4` and goes to your Downloads folder
 
 ## Privacy
 
