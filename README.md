@@ -30,7 +30,7 @@ Everything runs on your device. Your zip is read locally and is never uploaded a
 2. Open the app and choose your `bootanimation.zip`.
 3. Watch it play, or tap Record to save a video.
 
-4. ## Don't want to install an app?
+## Don't want to install an app?
 
 You can use it right in your browser instead, no installation needed:
 
