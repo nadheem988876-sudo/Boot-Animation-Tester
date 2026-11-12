@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0c0726">
-<title>Boot Animation Tester</title>
+<title>Boot Animation Tester – preview bootanimation.zip online</title>
+<meta name="description" content="Preview an Android bootanimation.zip in your browser. No flashing, no rebooting. Free and private.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Boot Animation Tester – preview bootanimation.zip online">
+<meta property="og:description" content="Preview an Android bootanimation.zip in your browser. No flashing, no rebooting. Free and private.">
 <style>
 :root{--bg:#15112b;--panel:#1d1840;--line:#33295f;--text:#ebe9f7;--muted:#9a95bd;--accent:#7b5cf0;--accent-d:#6646e0;
   --maxh:max(300px,calc(100vh - 300px))}
@@ -15,7 +19,8 @@ html,body{margin:0;min-height:100%}
 body{background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 body.noscroll{overflow:hidden}
 .wrap{max-width:980px;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 16px 40px}
-h1{margin:0 0 16px;font-size:22px;font-weight:600}
+h1{margin:0 0 6px;font-size:22px;font-weight:600}
+.lead{margin:0 0 16px;color:var(--muted);font-size:14px}
 .drop{position:relative;display:block;padding:16px 18px;border:1px dashed #4a3f85;border-radius:8px;cursor:pointer}
 .drop:hover,.drop:focus-within,.drop.over{border-color:var(--accent);background:var(--panel)}
 .drop input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
@@ -23,6 +28,7 @@ h1{margin:0 0 16px;font-size:22px;font-weight:600}
 .drop span{color:var(--muted);font-size:13px;word-break:break-word}
 .drop.compact{padding:10px 14px}
 .msg{margin:12px 0 0;padding:10px 12px;border-radius:6px;background:#3a1620;border:1px solid #7a2a3a;color:#ffd1d8;font-size:14px}
+.msg.warn{background:#3a2d12;border-color:#7a5c1e;color:#ffe3a3}
 .stage{display:flex;justify-content:center;margin:20px 0 4px}
 .device{width:fit-content;max-width:100%;background:#0b0818;border:1px solid var(--line);position:relative}
 .device.phone{padding:22px 8px 18px;border-radius:30px}
@@ -63,7 +69,6 @@ h1{margin:0 0 16px;font-size:22px;font-weight:600}
 .recnote{margin:6px 0 0;text-align:center;color:var(--muted);font-size:13px;word-break:break-word}
 .recnote a{color:#b9a8ff;cursor:pointer;margin-left:6px;text-decoration:underline}
 .btn.on{border-color:#e5484d}
-.btn.save{text-decoration:none;display:inline-block}
 .modal{position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(10,8,24,.78)}
 .modal .card{width:100%;max-width:340px;padding:22px 20px 18px;border-radius:8px;background:var(--panel);border:1px solid var(--line);text-align:center}
 .modal h2{margin:0 0 18px;font-size:20px;font-weight:600}
@@ -74,6 +79,7 @@ h1{margin:0 0 16px;font-size:22px;font-weight:600}
 <body>
 <main class="wrap">
   <h1>Boot Animation Tester</h1>
+  <p class="lead">Preview an Android bootanimation.zip in your browser. No flashing, no rebooting.</p>
 
   <label class="drop" id="drop">
     <input type="file" id="file" accept=".zip,application/zip,application/x-zip-compressed">
@@ -104,7 +110,6 @@ h1{margin:0 0 16px;font-size:22px;font-weight:600}
       <button class="btn primary" id="bRestart" type="button">Restart</button>
       <button class="btn" id="bPause" type="button">Pause</button>
       <button class="btn rec" id="bRec" type="button">Record</button>
-      <a class="btn save" id="bSave" hidden>Save video</a>
     </div>
     <p class="recnote" id="recNote" hidden></p>
   </section>
@@ -116,13 +121,9 @@ h1{margin:0 0 16px;font-size:22px;font-weight:600}
 
 <script>
 'use strict';
-/* ================= pure logic (also unit-tested outside the browser) ================= */
-// <pure>
 const IMG_RE=/\.(png|jpe?g|webp)$/i;
 const baseName=p=>p.slice(p.lastIndexOf('/')+1);
 const cmp=(a,b)=>a<b?-1:a>b?1:0;
-/* true: when boot completes, the loop in progress is played to its end.
-   false: it is cut on the spot, which is what Android itself does. */
 let FINISH_LOOP=true;
 
 function parseDesc(text){
@@ -199,8 +200,6 @@ function collectParts(desc,base,clean){
   }
 }
 
-/* Part sequencing, modelled on Android's BootAnimation::playAnimation.
-   Yields {k:'frame',pi,r,fi} or {k:'pause',pi,r,n}. Reads P.ctrl.bootComplete live. */
 function* sequence(){
   const exit=()=>P.ctrl.bootComplete;
   for(let pi=0;pi<anim.parts.length;pi++){
@@ -221,7 +220,6 @@ function* sequence(){
     }
   }
 }
-/* Which frames come next, used for decode-ahead. Returns [partIdx,frameIdx] pairs. */
 function predict(cur,n){
   const out=[],parts=anim.parts,exit=P.ctrl.bootComplete;
   let pi=cur.pi,r=cur.r,fi=cur.fi,guard=0;
@@ -242,7 +240,6 @@ function predict(cur,n){
   return out;
 }
 
-/* ---- MP4 writer (H.264 video + optional AAC audio), flat file with the index up front ---- */
 const be32=n=>[(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255];
 const be16=n=>[(n>>>8)&255,n&255];
 const fourcc=s=>[s.charCodeAt(0),s.charCodeAt(1),s.charCodeAt(2),s.charCodeAt(3)];
@@ -274,10 +271,8 @@ function esdsBox(asc){
   const es=[3,3+dcd.length+3,0,0,0,...dcd,6,1,2];
   return mkBox('esds',[0,0,0,0],es);
 }
-/* o: {W,H,fps, vdesc:Uint8Array(avcC), vs:[{d:Uint8Array,key,tick}], endTick, audio:{rate,ch,asc,frames:[Uint8Array]}|null}
-   tick = frame number on the timeline; endTick = where the last frame stops (frame hold included) */
 function buildMp4(o){
-  const {W,H,fps,vdesc,vs,endTick,audio}=o;
+  const {W,H,fps,vdesc,vs,endTick,audio,vp9}=o;
   const TS=fps*1000;
   const vDeltas=vs.map((s,i)=>((i+1<vs.length?vs[i+1].tick:endTick)-s.tick)*1000);
   const vDur=vDeltas.reduce((a,b)=>a+b,0);
@@ -289,7 +284,7 @@ function buildMp4(o){
   const ftyp=mkBox('ftyp',fourcc('isom'),be32(512),fourcc('isom'),fourcc('iso2'),fourcc('avc1'),fourcc('mp41'));
   const keys=[];vs.forEach((s,i)=>{if(s.key) keys.push(i+1);});
   if(!keys.length) keys.push(1);
-  const avc1=mkBox('avc1',zeros(6),be16(1),be16(0),be16(0),zeros(12),be16(W),be16(H),be32(0x480000),be32(0x480000),be32(0),be16(1),zeros(32),be16(0x18),be16(0xFFFF),mkBox('avcC',vdesc));
+  const avc1=mkBox(vp9?'vp09':'avc1',zeros(6),be16(1),be16(0),be16(0),zeros(12),be16(W),be16(H),be32(0x480000),be32(0x480000),be32(0),be16(1),zeros(32),be16(0x18),be16(0xFFFF),vp9?mkBox('vpcC',[1,0,0,0],[0,vp9,0x82,2,2,2],be16(0)):mkBox('avcC',vdesc));
   const make=(vOff,aOff)=>{
     const vStbl=mkBox('stbl',mkBox('stsd',[0,0,0,0],be32(1),avc1),sttsBox(vDeltas),mkBox('stss',[0,0,0,0],be32(keys.length),u32list(keys)),stscBox(vs.length),stszBox(vs.map(s=>s.d.length)),stcoBox(vOff));
     const vTrak=mkBox('trak',tkhdBox(1,vMs,0,W,H),mkBox('mdia',mdhdBox(TS,vDur),hdlrBox('vide','VideoHandler'),mkBox('minf',mkBox('vmhd',[0,0,0,1],zeros(8)),dinfBox(),vStbl)));
@@ -310,14 +305,12 @@ function buildMp4(o){
   if(audio) parts.push(...audio.frames);
   return new Blob(parts,{type:'video/mp4'});
 }
-/* H.264 level (the two limits that matter: macroblocks per frame and per second) */
 function avcLevel(W,H,fps){
   const mbs=Math.ceil(W/16)*Math.ceil(H/16),mbps=mbs*fps;
   for(const [id,fs,ps] of [[0x1F,3600,108000],[0x28,8192,245760],[0x2A,8704,522240],[0x32,22080,589824],[0x33,36864,983040],[0x34,36864,2073600]])
     if(mbs<=fs&&mbps<=ps) return id;
   return 0x34;
 }
-/* all audio.wav starts of one run mixed into one stereo track */
 function mixAudio(starts,seconds){
   const rate=starts[0].buf.sampleRate,n=Math.ceil(seconds*rate);
   const L=new Float32Array(n),Rr=new Float32Array(n);
@@ -329,22 +322,19 @@ function mixAudio(starts,seconds){
   for(let i=0;i<n;i++){L[i]=Math.max(-1,Math.min(1,L[i]));Rr[i]=Math.max(-1,Math.min(1,Rr[i]));}
   return {rate,L,R:Rr,n};
 }
-// </pure>
 
-/* ================= app ================= */
 const el={};
-['drop','file','dropTitle','dropSub','msg','stageSec','device','screen','cv','rsBtn','fsBtn','recPill','loading','barFill','loadTxt','bRestart','bPause','bRec','bSave','recNote','done','doneTitle','doneSub','doneOk'].forEach(id=>el[id]=document.getElementById(id));
+['drop','file','dropTitle','dropSub','msg','stageSec','device','screen','cv','rsBtn','fsBtn','recPill','loading','barFill','loadTxt','bRestart','bPause','bRec','recNote','done','doneTitle','doneSub','doneOk'].forEach(id=>el[id]=document.getElementById(id));
 const fmt=ms=>{const s=Math.max(0,ms)/1000;return Math.floor(s/60)+':'+(s%60).toFixed(1).padStart(4,'0');};
 
-const BOOT_MS=20000;           // simulated time until "boot complete", like a real phone
-const HOLD_MS=700;             // how long the last frame stays in a recording
+const BOOT_MS=20000;
+const HOLD_MS=700;
 const LOOKAHEAD=28,MAXPAR=4,PRELOAD_BUDGET=450e6,STREAM_BUDGET=250e6;
 let anim=null,ctx=null,loadId=0;
 function newPlayer(){return{gen:null,held:null,running:false,paused:false,finished:false,vnow:0,last:0,nextAt:0,elapsed:0,
   cur:{pi:-1,r:0,fi:0},ctrl:{bootComplete:false,bootAt:null,iterDone:0,curPart:-1},stalls:0,shown:0,raf:0};}
 let P=newPlayer();
 
-/* ---- audio ---- */
 let actx=null;const sources=new Set();
 function ensureAudio(){try{if(!actx){const AC=window.AudioContext||window.webkitAudioContext;if(AC)actx=new AC();}if(actx&&actx.state==='suspended')actx.resume();}catch(e){}}
 function playAudio(part){
@@ -358,7 +348,6 @@ function playAudio(part){
 }
 function stopAudio(){for(const s of sources){try{s.stop();}catch(e){}}sources.clear();}
 
-/* ---- frame decoding ---- */
 async function decodeFrame(A,fr){
   const data=await zipData(A.u8,fr.e);
   const ext=fr.name.slice(fr.name.lastIndexOf('.')+1).toLowerCase();
@@ -399,11 +388,9 @@ function unloadAnim(){
   anim=null;P=newPlayer();
 }
 
-/* ---- drawing ---- */
-/* Frames are drawn 1:1 at their trim offset, the same way Android draws them. */
 function draw(part,fr){
   ctx.fillStyle=part.bg||'#000';ctx.fillRect(0,0,el.cv.width,el.cv.height);
-  if(fr.bmp) ctx.drawImage(fr.bmp,fr.tx,fr.ty);
+  if(fr.bmp) ctx.drawImage(fr.bmp,fr.tx,fr.ty,fr.tw,fr.th);
 }
 function showFrame(ev){
   const part=anim.parts[ev.pi],fr=part.frames[ev.fi];
@@ -422,7 +409,6 @@ function showFrame(ev){
   return true;
 }
 
-/* ---- player ---- */
 const frameDur=()=>1000/anim.fps;
 function gateBoot(){
   const c=P.ctrl;
@@ -454,7 +440,7 @@ function tick(ts){
 function start(){
   cancelAnimationFrame(P.raf);stopAudio();
   P=newPlayer();P.gen=sequence();P.running=true;
-  ctx.fillStyle='#000';ctx.fillRect(0,0,el.cv.width,el.cv.height);   // a boot starts from black
+  ctx.fillStyle='#000';ctx.fillRect(0,0,el.cv.width,el.cv.height);
   recFrame();
   if(actx&&actx.state==='suspended') ensureAudio();
   P.raf=requestAnimationFrame(tick);
@@ -477,12 +463,7 @@ function restart(){
   ensureAudio();start();
 }
 
-/* ---- recording ----
-   Preferred: frame-exact render. The whole run is played out in virtual time (1 frame = 1/fps s, pauses and the
-   20 s boot included), every frame is drawn at the desc.txt size, handed to the browser's H.264 encoder with its
-   exact timestamp and written into a normal MP4. Nothing depends on how fast this device can play it live.
-   Fallback (no WebCodecs): live capture of the canvas. */
-const R={rec:null,job:null,stream:null,track:null,dest:null,chunks:[],t0:0,vt:0,timer:0,url:null,discard:false,stopping:false,mime:'',ext:'mp4',wake:null,stat:null,bps:0};
+const R={rec:null,job:null,stream:null,track:null,dest:null,chunks:[],t0:0,vt:0,timer:0,url:null,name:'',discard:false,stopping:false,mime:'',ext:'mp4',wake:null,stat:null,bps:0};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const hasWebCodecs=()=>typeof VideoEncoder==='function'&&typeof VideoFrame==='function';
 const hasLiveCapture=()=>typeof MediaRecorder!=='undefined'&&typeof el.cv.captureStream==='function';
@@ -494,7 +475,7 @@ function releaseAwake(){try{if(R.wake) R.wake.release();}catch(e){}R.wake=null;}
 
 function clearSave(){
   if(R.url){try{URL.revokeObjectURL(R.url);}catch(e){}R.url=null;}
-  el.bSave.hidden=true;el.bSave.removeAttribute('href');
+  R.blob=null;R.name='';
   el.recNote.hidden=true;
 }
 function updateRecUI(){
@@ -519,15 +500,14 @@ function showDone(title,sub){el.doneTitle.textContent=title;el.doneSub.textConte
 el.doneOk.addEventListener('click',()=>{el.done.hidden=true;});
 el.done.addEventListener('click',e=>{if(e.target===el.done) el.done.hidden=true;});
 const cleanName=n=>String(n).replace(/[\\/:*?"<>|\x00-\x1f]+/g,'_').trim();
-/* Inside the Android app the file goes to Downloads through the native bridge (blob links do not download in a WebView). */
 async function appSave(){
-  const blob=R.blob,name=cleanName(el.bSave.download||'boot-animation_recording.mp4');
+  const blob=R.blob,name=cleanName(R.name||'boot-animation_recording.mp4');
   if(!blob) return;
   let ok=false,shown=name;
   try{
     if(Android.begin(name,blob.type||'video/mp4')){
-      try{const n=Android.name&&Android.name();if(n) shown=String(n);}catch(e){}   // the real file name (Android adds " (1)" if it already exists)
-      const CH=3*256*1024;                       // multiple of 3, so the base64 pieces join cleanly
+      try{const n=Android.name&&Android.name();if(n) shown=String(n);}catch(e){}
+      const CH=3*256*1024;
       for(let o=0;o<blob.size;o+=CH){
         const u=new Uint8Array(await blob.slice(o,o+CH).arrayBuffer());
         let s='';for(let i=0;i<u.length;i+=0x8000) s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));
@@ -544,10 +524,10 @@ function autoSave(){
   if(window.Android&&Android.begin){appSave();return;}
   try{
     const a=document.createElement('a');
-    a.href=el.bSave.href;a.download=el.bSave.download;a.style.display='none';
+    a.href=R.url;a.download=R.name;a.style.display='none';
     document.body.appendChild(a);a.click();
     setTimeout(()=>a.remove(),1500);
-    showDone('Record finished','Saved as '+cleanName(el.bSave.download));
+    showDone('Record finished','Saved as '+cleanName(R.name));
   }catch(e){}
 }
 function finishRecording(blob,ext,secs,extra){
@@ -556,23 +536,43 @@ function finishRecording(blob,ext,secs,extra){
   const W=el.cv.width,H=el.cv.height;
   R.url=URL.createObjectURL(blob);R.blob=blob;
   const stem=cleanName((anim.name||'bootanimation').replace(/\.zip$/i,''))||'bootanimation';
-  el.bSave.href=R.url;
-  el.bSave.download=stem+'_recording.'+ext;
+  R.name=stem+'_recording.'+ext;
   const size=blob.size<1048576?Math.max(1,Math.round(blob.size/1024))+' KB':(blob.size/1048576).toFixed(1)+' MB';
   el.recNote.textContent='Recorded '+W+' × '+H+' · '+secs.toFixed(1)+' s · '+size+' · '+ext.toUpperCase()+(extra?' · '+extra:'');
   el.recNote.hidden=false;
   autoSave();
 }
 
-/* ---- frame-exact path ---- */
-async function pickVideoConfig(W,H,fps){
-  const hx=n=>n.toString(16).toUpperCase().padStart(2,'0'),lvl=hx(avcLevel(W,H,fps));
+async function videoConfigs(W,H,fps){
+  const hx=n=>n.toString(16).toUpperCase().padStart(2,'0');
   const bitrate=Math.round(Math.min(50e6,Math.max(6e6,W*H*fps*0.3)));
-  for(const pre of ['6400','4D00','42E0']){
-    const cfg={codec:'avc1.'+pre+lvl,width:W,height:H,bitrate,framerate:fps,latencyMode:'quality',avc:{format:'avc'}};
-    try{const s=await VideoEncoder.isConfigSupported(cfg);if(s&&s.supported) return cfg;}catch(e){}
+  const sup=async cfg=>{try{const s=await VideoEncoder.isConfigSupported(cfg);return !!(s&&s.supported);}catch(e){return false;}};
+  const mk=(pre,lvl,br,extra)=>Object.assign({codec:'avc1.'+pre+hx(lvl),width:W,height:H,bitrate:br,framerate:fps,latencyMode:'quality',avc:{format:'avc'}},extra||{});
+  const found=[];
+  for(const lvl of [...new Set([avcLevel(W,H,fps),0x29,0x32])]){
+    for(const pre of ['6400','4D00','42E0']){
+      if(await sup(mk(pre,lvl,bitrate))){found.push([pre,lvl]);break;}
+    }
   }
-  return null;
+  const half=Math.max(2e6,Math.round(bitrate/2)),quarter=Math.max(2e6,Math.round(bitrate/4));
+  const f0=found[0],f1=found[1],f2=found[2],picks=[];
+  if(f0){
+    picks.push(mk(f0[0],f0[1],bitrate),mk(f0[0],f0[1],half));
+    if(f1) picks.push(mk(f1[0],f1[1],bitrate));
+    picks.push(mk(f0[0],f0[1],bitrate,{latencyMode:'realtime'}));
+    const sw=mk(f0[0],f0[1],half,{hardwareAcceleration:'prefer-software'});
+    if(await sup(sw)) picks.push(sw);
+    if(f2) picks.push(mk(f2[0],f2[1],bitrate));
+    picks.push(mk(f0[0],f0[1],quarter));
+    if(f1) picks.push(mk(f1[0],f1[1],half));
+  }
+  const list=[],seen=new Set();
+  for(const c of picks){const key=JSON.stringify(c);if(!seen.has(key)){seen.add(key);list.push({cfg:c,kind:'h264'});}}
+  list.length=Math.min(list.length,8);
+  const px=W*H,lv=px<=2359296?40:px<=8912896?50:60,vbr=Math.round(Math.min(40e6,Math.max(4e6,px*fps*0.15)));
+  const v9={codec:'vp09.00.'+lv+'.08',width:W,height:H,bitrate:vbr,framerate:fps,latencyMode:'realtime'};
+  if(await sup(v9)) list.push({cfg:v9,kind:'vp9',level:lv});
+  return {list};
 }
 async function encodeAudio(mix){
   if(typeof AudioEncoder!=='function'||typeof AudioData!=='function') return {note:'no sound: audio encoding is not available here'};
@@ -601,16 +601,14 @@ async function encodeAudio(mix){
   if(err||!asc||!frames.length) return {note:'no sound: the AAC encoder gave no data'};
   return {rate:mix.rate,ch:2,asc,frames};
 }
-async function recordOffline(job){
-  const W=el.cv.width,H=el.cv.height,fps=anim.fps;
-  const cfg=await pickVideoConfig(W,H,fps);
-  if(!cfg) return null;
+async function recordOffline(job,cand){
+  const W=el.cv.width,H=el.cv.height,fps=anim.fps,cfg=cand.cfg,vp9=cand.kind==='vp9';
   const vs=[];let vdesc=null,err=null;
   const enc=new VideoEncoder({
     output:(c,m)=>{
       const d=new Uint8Array(c.byteLength);c.copyTo(d);
       vs.push({d,key:c.type==='key',tick:Math.round(c.timestamp*fps/1e6)});
-      if(!vdesc&&m&&m.decoderConfig&&m.decoderConfig.description) vdesc=toU8(m.decoderConfig.description);
+      if(!vp9&&!vdesc&&m&&m.decoderConfig&&m.decoderConfig.description) vdesc=toU8(m.decoderConfig.description);
     },
     error:e=>{err=e;}
   });
@@ -620,7 +618,7 @@ async function recordOffline(job){
     P=newPlayer();P.gen=sequence();
     const gop=Math.max(1,Math.round(fps)),hold=Math.round(HOLD_MS*fps/1000);
     const starts=[];
-    let k=0,count=0;                       // k = position on the timeline, in frames
+    let k=0,count=0;
     for(;;){
       if(job.cancel) throw new Error('cancelled');
       if(err) throw err;
@@ -644,12 +642,13 @@ async function recordOffline(job){
         await new Promise(r=>{enc.ondequeue=()=>{enc.ondequeue=null;r();};setTimeout(r,40);});
         if(err) throw err;if(job.cancel) throw new Error('cancelled');
       }
+      if(count===60){if(!vs.length) throw new Error('the encoder gave no output');if(!vp9&&!vdesc) throw new Error('the encoder gave no codec description');}
       if((count&3)===0) await sleep(0);
     }
     const endTick=k+hold;
     await enc.flush();
     if(err) throw err;
-    if(!vdesc||!vs.length) throw new Error('the encoder gave no usable video');
+    if((!vp9&&!vdesc)||!vs.length) throw new Error('the encoder gave no usable video');
     let audio=null,note='';
     if(starts.length){
       const a=await encodeAudio(mixAudio(starts,endTick/fps));
@@ -657,7 +656,7 @@ async function recordOffline(job){
     }
     P.finished=true;P.running=false;
     R.stat={frames:vs.length,endTick,audio:!!audio,codec:cfg.codec,bitrate:cfg.bitrate};
-    return {blob:buildMp4({W,H,fps,vdesc,vs,endTick,audio}),secs:endTick/fps,note};
+    return {blob:buildMp4({W,H,fps,vdesc,vs,endTick,audio,vp9:vp9?cand.level:0}),ext:'mp4',kind:cand.kind,secs:endTick/fps,note};
   }finally{try{enc.close();}catch(e){}}
 }
 async function startRec(){
@@ -667,22 +666,35 @@ async function startRec(){
   if(hasWebCodecs()){
     const job={cancel:false};R.job=job;R.vt=0;
     beginRecUI('Recording '+el.cv.width+' × '+el.cv.height+' frame by frame. Keep this screen on, it saves by itself when done.');
+    let res=null;const fails=[];
     try{
-      const res=await recordOffline(job);
-      if(job.cancel||R.job!==job) return;
-      R.job=null;
-      if(res){finishRecording(res.blob,'mp4',res.secs,res.note);return;}
+      const info=await videoConfigs(el.cv.width,el.cv.height,anim.fps);
+      for(const cand of info.list){
+        if(job.cancel||R.job!==job) return;
+        try{res=await recordOffline(job,cand);}
+        catch(e){
+          if(job.cancel||R.job!==job) return;
+          console.warn('Frame-exact recording failed with '+cand.cfg.codec+':',e);
+          if(cand.kind==='h264') fails.push(String((e&&e.message)||e).slice(0,80));
+          R.vt=0;
+        }
+        if(res) break;
+      }
     }catch(e){
       if(job.cancel||R.job!==job) return;
-      R.job=null;
-      console.warn('Frame-exact recording failed, using live capture instead:',e);
+    }
+    if(job.cancel||R.job!==job) return;
+    R.job=null;
+    if(res){
+      let note=res.note||'';
+      if(res.kind==='vp9') note=(note?note+' · ':'')+'VP9 inside MP4, H.264 failed here ('+(fails.length?fails[0]:'no H.264 encoder offered for this size')+')';
+      finishRecording(res.blob,res.ext,res.secs,note);return;
     }
     endRecUI();
   }
   startLive();
 }
 
-/* ---- live-capture fallback ---- */
 function recFrame(){
   if(!R.rec||!R.stream) return;
   try{
@@ -727,13 +739,13 @@ function startLive(){
   try{rec.start();}catch(e){R.rec=null;el.recNote.textContent='Could not start recording: '+(e&&e.message||e);el.recNote.hidden=false;return;}
   R.t0=performance.now();
   beginRecUI('Recording live at '+W+' × '+H+' (this browser cannot render frame by frame, so quality depends on the device). Keep this tab open and visible until it finishes.');
-  start();          // plays the animation from the very beginning; recFrame() fires on every drawn frame
+  start();
 }
 function stopRec(){
   const rec=R.rec;
   if(!rec||R.stopping) return;
   R.stopping=true;
-  try{ctx.drawImage(el.cv,0,0);}catch(e){}   // repaint the same pixels: the browser only captures a canvas that was painted
+  try{ctx.drawImage(el.cv,0,0);}catch(e){}
   recFrame();
   setTimeout(()=>{try{if(rec.state!=='inactive') rec.stop(); else onRecStop(rec);}catch(e){onRecStop(rec);}},150);
 }
@@ -754,7 +766,6 @@ function onRecStop(rec){
   finishRecording(blob,R.ext,secs,'');
 }
 
-/* ---- UI ---- */
 function updateButtons(){
   const rec=recording();
   el.bPause.textContent=P.paused?'Play':'Pause';
@@ -768,11 +779,11 @@ function setLoading(on,txt,frac){
   el.loading.hidden=!on;
   if(on){el.loadTxt.textContent=txt||'';el.barFill.style.width=Math.round((frac||0)*100)+'%';}
 }
-function showMsg(t){el.msg.textContent=t;el.msg.hidden=false;}
+function showMsg(t,warn){el.msg.textContent=t;el.msg.classList.toggle('warn',!!warn);el.msg.hidden=false;}
 function hideMsg(){el.msg.hidden=true;}
 function applyLayout(){
   const W=anim.width,H=anim.height;
-  const cw=W+(W&1),ch=H+(H&1);   // video encoders want even sizes
+  const cw=W+(W&1),ch=H+(H&1);
   el.cv.width=cw;el.cv.height=ch;
   ctx=el.cv.getContext('2d',{alpha:false});
   ctx.fillStyle='#000';ctx.fillRect(0,0,cw,ch);
@@ -784,7 +795,6 @@ function applyLayout(){
   el.stageSec.hidden=false;
 }
 
-/* ---- loading a zip ---- */
 async function loadFile(file){
   const id=++loadId;
   unloadAnim();hideMsg();clearSave();
@@ -796,11 +806,14 @@ async function loadFile(file){
     const descText=new TextDecoder().decode(await zipData(u8,loc.descEntry));
     const desc=parseDesc(descText);
     collectParts(desc,loc.base,loc.clean);
+    const used=[loc.descEntry];
+    for(const p of desc.parts){used.push(...p.files);if(p.trimEntry) used.push(p.trimEntry);if(p.audioEntry) used.push(p.audioEntry);}
+    const packed=used.filter(e=>e.method!==0).length;
     let total=0;
     for(const p of desc.parts){
       let trims=null;
       if(p.trimEntry){try{trims=parseTrim(new TextDecoder().decode(await zipData(u8,p.trimEntry)));}catch(e){}}
-      p.frames=p.files.map((e,i)=>{const t=trims&&trims[i];return{e,name:baseName(e.name),bmp:null,loading:null,err:false,used:0,tx:t?t.x:0,ty:t?t.y:0};});
+      p.frames=p.files.map((e,i)=>{const t=trims&&trims[i];return{e,name:baseName(e.name),bmp:null,loading:null,err:false,used:0,tx:t?t.x:0,ty:t?t.y:0,tw:t?t.w:desc.width,th:t?t.h:desc.height};});
       total+=p.frames.length;
       if(p.audioEntry&&actx){
         try{const d=await zipData(u8,p.audioEntry);p.audioBuf=await actx.decodeAudioData(d.slice().buffer);}catch(e){}
@@ -812,6 +825,7 @@ async function loadFile(file){
       hasAudio:desc.parts.some(p=>p.audioBuf)});
     P=newPlayer();
     applyLayout();
+    if(packed) showMsg('Warning: this zip is compressed ('+packed+' of '+used.length+' files). Android needs compression level 0 (store only), so it may not play on a real phone.',true);
     el.drop.classList.add('compact');
     el.dropTitle.textContent=file.name;
     el.dropSub.textContent=(file.size/1048576).toFixed(1)+' MB · '+desc.width+'×'+desc.height+' @ '+desc.fps+' fps · tap to load another zip';
@@ -848,7 +862,6 @@ async function loadFile(file){
   }
 }
 
-/* ---- fullscreen ---- */
 const nativeFs=()=>document.fullscreenElement||document.webkitFullscreenElement;
 const isFs=()=>nativeFs()===el.screen||el.screen.classList.contains('pseudo-fs');
 let idleT=0;
@@ -876,14 +889,13 @@ async function toggleFs(){
     else{const x=document.exitFullscreen||document.webkitExitFullscreen;if(x)x.call(document);}
     updateFs();return;
   }
-  const req=window.Android?null:(el.screen.requestFullscreen||el.screen.webkitRequestFullscreen);   // the app does its own fullscreen
+  const req=window.Android?null:(el.screen.requestFullscreen||el.screen.webkitRequestFullscreen);
   if(req){try{await req.call(el.screen);return;}catch(e){}}
   el.screen.classList.add('pseudo-fs');document.body.classList.add('noscroll');updateFs();
 }
 document.addEventListener('fullscreenchange',updateFs);
 document.addEventListener('webkitfullscreenchange',updateFs);
 
-/* ---- wiring ---- */
 el.file.addEventListener('change',()=>{const f=el.file.files[0];if(f)loadFile(f);el.file.value='';});
 el.drop.addEventListener('click',ensureAudio);
 ['dragenter','dragover'].forEach(t=>window.addEventListener(t,e=>{e.preventDefault();el.drop.classList.add('over');}));
@@ -893,7 +905,6 @@ el.bRestart.onclick=restart;
 el.rsBtn.onclick=e=>{e.stopPropagation();restart();poke();};
 el.bPause.onclick=togglePause;
 el.bRec.onclick=startRec;
-el.bSave.addEventListener('click',e=>{if(window.Android&&Android.begin){e.preventDefault();appSave();}});
 if(window.Android) el.dropSub.textContent='Tap to choose the zip file.';
 el.fsBtn.onclick=e=>{e.stopPropagation();toggleFs();};
 ['mousemove','touchstart','pointerdown'].forEach(t=>el.screen.addEventListener(t,poke,{passive:true}));
@@ -905,7 +916,7 @@ window.addEventListener('keydown',e=>{
   else if(k===' '&&!isFs()){e.preventDefault();togglePause();}
   else if(k==='escape'&&el.screen.classList.contains('pseudo-fs')) toggleFs();
 });
-window.__bootBack=()=>{if(isFs()){toggleFs();return true;}return false;};   // Android Back leaves fullscreen first
+window.__bootBack=()=>{if(isFs()){toggleFs();return true;}return false;};
 updateButtons();
 </script>
 </body>
