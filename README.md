@@ -2,6 +2,8 @@
 
 Preview an Android `bootanimation.zip` on your screen exactly like a phone plays it at boot, with no flashing and no rebooting.
 
+(N988876.jpg)
+
 ## Download
 
 Get the APK from the [Releases page](../../releases/latest).
