@@ -34,7 +34,7 @@ h1{margin:0 0 6px;font-size:22px;font-weight:600}
 .device.phone{padding:22px 8px 18px;border-radius:30px}
 .device.box{padding:6px;border-radius:10px}
 .screen{position:relative;background:#000;overflow:hidden;aspect-ratio:var(--ar,9 / 16);
-  width:min(calc(100vw - 80px),1000px,calc(var(--maxh) * var(--arn,.5625)))}
+  width:min(calc(100vw - 80px),930px,calc(var(--maxh) * var(--arn,.5625)))}
 .phone .screen{border-radius:22px}
 .box .screen{border-radius:5px}
 #cv{display:block;width:100%;height:100%;object-fit:contain;background:#000}
@@ -472,7 +472,7 @@ function togglePause(){
   updateButtons();
 }
 function restart(){
-  if(!anim||R.rec) return;
+  if(!anim||recording()) return;
   ensureAudio();start();
 }
 
@@ -513,6 +513,7 @@ function showDone(title,sub){el.doneTitle.textContent=title;el.doneSub.textConte
 el.doneOk.addEventListener('click',()=>{el.done.hidden=true;});
 el.done.addEventListener('click',e=>{if(e.target===el.done) el.done.hidden=true;});
 const cleanName=n=>String(n).replace(/[\\/:*?"<>|\x00-\x1f]+/g,'_').trim();
+const stamp=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());};
 async function appSave(){
   const blob=R.blob,name=cleanName(R.name||'boot-animation_recording.mp4');
   if(!blob) return;
@@ -548,8 +549,8 @@ function finishRecording(blob,ext,secs,extra){
   if(!blob||!anim){el.recNote.hidden=true;return;}
   const W=el.cv.width,H=el.cv.height;
   R.url=URL.createObjectURL(blob);R.blob=blob;
-  const stem=cleanName((anim.name||'bootanimation').replace(/\.zip$/i,''))||'bootanimation';
-  R.name=stem+'_recording.'+ext;
+  const stem=cleanName((anim.name||'bootanimation').replace(/\.zip$/i,'')).replace(/^[.\s]+/,'').slice(0,80).trim()||'bootanimation';
+  R.name=stem+'_recording_'+stamp()+'.'+ext;
   const size=blob.size<1048576?Math.max(1,Math.round(blob.size/1024))+' KB':(blob.size/1048576).toFixed(1)+' MB';
   el.recNote.textContent='Recorded '+W+' × '+H+' · '+secs.toFixed(1)+' s · '+size+' · '+ext.toUpperCase()+(extra?' · '+extra:'');
   el.recNote.hidden=false;
@@ -673,7 +674,7 @@ async function recordOffline(job,cand){
   }finally{try{enc.close();}catch(e){}}
 }
 async function startRec(){
-  if(!anim||recording()) return;
+  if(!anim||!anim.ready||recording()) return;
   if(!canRecord()){el.recNote.textContent='This browser cannot record video.';el.recNote.hidden=false;return;}
   ensureAudio();
   if(hasWebCodecs()){
@@ -785,7 +786,7 @@ function updateButtons(){
   el.bPause.disabled=!P.running||rec;
   el.bRestart.disabled=rec;
   el.rsBtn.disabled=rec;
-  el.bRec.disabled=!anim||rec||!canRecord();
+  el.bRec.disabled=!anim||!anim.ready||rec||!canRecord();
   if(!canRecord()) el.bRec.title='Recording is not supported in this browser';
 }
 function setLoading(on,txt,frac){
@@ -834,7 +835,7 @@ async function loadFile(file){
     }
     if(!total) throw new Error('No frames found. Expected part folders (as listed in desc.txt) containing PNG or JPG files.');
     if(id!==loadId) return;
-    anim=Object.assign(desc,{u8,name:file.name,decoded:new Set(),inflight:0,seq:0,mode:'stream',bpf:0,cacheMax:60,
+    anim=Object.assign(desc,{u8,name:file.name,ready:false,decoded:new Set(),inflight:0,seq:0,mode:'stream',bpf:0,cacheMax:60,
       hasAudio:desc.parts.some(p=>p.audioBuf)});
     P=newPlayer();
     applyLayout();
@@ -864,6 +865,7 @@ async function loadFile(file){
     await preload(list,(d,t)=>{if(id===loadId) setLoading(true,'Decoding frames… '+d+' / '+t,d/t);});
     if(id!==loadId) return;
     setLoading(false);
+    anim.ready=true;
     start();
   }catch(err){
     if(id!==loadId) return;
